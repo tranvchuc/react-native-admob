@@ -1,7 +1,14 @@
 package com.sbugert.rnadmob;
 
+import android.app.Activity;
 import android.content.Context;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
+
+import android.content.res.Resources;
+import android.os.Bundle;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.util.TypedValue;
 import android.view.View;
 
 import com.facebook.react.bridge.Arguments;
@@ -20,46 +27,71 @@ import com.google.android.gms.ads.AdListener;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.AdSize;
 import com.google.android.gms.ads.AdView;
-
+import com.google.android.gms.ads.AdapterResponseInfo;
+import com.google.android.gms.ads.LoadAdError;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 
 class ReactAdView extends ReactViewGroup {
 
     protected AdView adView;
-
+    Context mContext;
+    Activity mActivity;
     String adUnitID;
     String[] testDevices;
     AdSize adSize;
+    String ID;
 
-    public ReactAdView(final Context context) {
+    public ReactAdView(final Context context, final Activity activity) {
         super(context);
+        mContext = context;
+        mActivity = activity;
         this.createAdView();
+        ID = String.valueOf(System.currentTimeMillis());
     }
 
     private void createAdView() {
         if (this.adView != null) this.adView.destroy();
 
-        final Context context = getContext();
-        this.adView = new AdView(context);
+        final Context context = mContext;
+        this.adView = new AdView(mActivity);
+        AdListener adListener;
+
         this.adView.setAdListener(new AdListener() {
             @Override
             public void onAdLoaded() {
+                Log.d("chuctv","Banner adapter class name: " + adView.getResponseInfo().toString());
+//                String mediationClassName = adView.getResponseInfo().getMediationAdapterClassName();
+//                for(AdapterResponseInfo adapterResponseInfo: adView.getResponseInfo().getAdapterResponses())
+//                {
+//
+//                }
+                DisplayMetrics displayMetrics = new DisplayMetrics();
+                mActivity.getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+                int  midWidth = (int) displayMetrics.widthPixels/2;
                 int width = adView.getAdSize().getWidthInPixels(context);
                 int height = adView.getAdSize().getHeightInPixels(context);
-                int left = adView.getLeft();
-                int top = adView.getTop();
+                int avgWidth = (int) width/2;
+                int left = midWidth - avgWidth;
+                int top =  0;
+                int rigth = left + width;
+                int bot = top + height;
                 adView.measure(width, height);
-                adView.layout(left, top, left + width, top + height);
+                adView.layout(left, top, rigth,  bot);
+                Log.d("chuctv", "onAdLoaded: " + (rigth - left)  + " " + (bot - top) + " " + width +" " + height);
                 sendOnSizeChangeEvent();
                 sendEvent(RNAdMobBannerViewManager.EVENT_AD_LOADED, null);
             }
 
             @Override
-            public void onAdFailedToLoad(int errorCode) {
-                String errorMessage = "Unknown error";
-                switch (errorCode) {
+            public void onAdFailedToLoad(LoadAdError adError) {
+                String errorMessage = adError.getMessage();
+
+                Log.d("chuctv", "onAdFailedToLoad: " +  adError.getResponseInfo().toString());
+                Log.d("chuctv", "onAdFailedToLoad: " + errorMessage);
+                switch (adError.getCode()) {
                     case AdRequest.ERROR_CODE_INTERNAL_ERROR:
                         errorMessage = "Internal error, an invalid response was received from the ad server.";
                         break;
@@ -70,7 +102,8 @@ class ReactAdView extends ReactViewGroup {
                         errorMessage = "The ad request was unsuccessful due to network connectivity.";
                         break;
                     case AdRequest.ERROR_CODE_NO_FILL:
-                        errorMessage = "The ad request was successful, but no ad was returned due to lack of ad inventory.";
+//                        loadBanner();
+//                        errorMessage = "The ad request was successful, but no ad was returned due to lack of ad inventory.";
                         break;
                 }
                 WritableMap event = Arguments.createMap();
@@ -98,6 +131,7 @@ class ReactAdView extends ReactViewGroup {
         this.addView(this.adView);
     }
 
+
     private void sendOnSizeChangeEvent() {
         int width;
         int height;
@@ -111,8 +145,9 @@ class ReactAdView extends ReactViewGroup {
             width = adSize.getWidth();
             height = adSize.getHeight();
         }
-        event.putDouble("width", width);
         event.putDouble("height", height);
+        event.putDouble("width", width);
+        Log.d("chuctv", "sendOnSizeChangeEvent: height " + height + " x " + width);
         sendEvent(RNAdMobBannerViewManager.EVENT_SIZE_CHANGE, event);
     }
 
@@ -183,7 +218,7 @@ public class RNAdMobBannerViewManager extends ViewGroupManager<ReactAdView> {
 
     @Override
     protected ReactAdView createViewInstance(ThemedReactContext themedReactContext) {
-        ReactAdView adView = new ReactAdView(themedReactContext);
+        ReactAdView adView = new ReactAdView(themedReactContext, themedReactContext.getCurrentActivity());
         return adView;
     }
 
